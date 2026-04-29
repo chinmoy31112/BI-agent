@@ -1,0 +1,371 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Building2,
+  Mail,
+  Edit3,
+  Save,
+  X,
+  LogOut,
+  Camera,
+  CheckCircle2,
+  AlertCircle,
+  Shield,
+  Info,
+  Calendar,
+  Loader2,
+} from "lucide-react";
+import { AVATAR_COLORS, getInitials } from "../utils/constants";
+import { useAuth } from "../context/AuthContext";
+import { supabase } from "../utils/supabase";
+
+export default function ProfilePage() {
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({});
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [showColorPicker, setShowColorPicker] = useState(false);
+
+  // Extract profile data from Supabase user metadata
+  const userMetadata = user?.user_metadata || {};
+  const profile = {
+    name: userMetadata.full_name || "",
+    email: user?.email || "",
+    avatarColor: userMetadata.avatar_color ?? 0,
+    joinedAt: user?.created_at || new Date().toISOString(),
+  };
+
+  useEffect(() => {
+    // Initialize draft when editing starts
+    if (editing) {
+      setDraft({ ...profile });
+    }
+  }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleEdit() {
+    setDraft({ ...profile });
+    setErrors({});
+    setEditing(true);
+  }
+
+  function handleCancel() {
+    setDraft({});
+    setErrors({});
+    setEditing(false);
+  }
+
+  function validate(d) {
+    const e = {};
+    if (!d.name?.trim()) e.name = "Organization name is required.";
+    return e;
+  }
+
+  async function handleSave() {
+    const e = validate(draft);
+    if (Object.keys(e).length) {
+      setErrors(e);
+      return;
+    }
+
+    setSaving(true);
+
+    const { error: updateError } = await supabase.auth.updateUser({
+      data: {
+        full_name: draft.name?.trim(),
+        avatar_color: draft.avatarColor,
+      },
+    });
+
+    setSaving(false);
+
+    if (updateError) {
+      setErrors({ general: updateError.message });
+      return;
+    }
+
+    setEditing(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  }
+
+  function handleChange(field, value) {
+    setDraft((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const n = { ...prev };
+        delete n[field];
+        return n;
+      });
+    }
+  }
+
+  async function handleSignOut() {
+    await signOut();
+    navigate("/landing");
+  }
+
+  const color = AVATAR_COLORS[editing ? draft.avatarColor ?? 0 : profile.avatarColor];
+  const initials = getInitials(editing ? draft.name : profile.name);
+
+  return (
+    <div className="space-y-6 animate-fade-in-up max-w-3xl">
+      {/* Page Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-text-primary">Organization Profile</h1>
+          <p className="text-sm text-text-muted mt-0.5">
+            Manage your organization information and settings
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {saved && (
+            <span className="flex items-center gap-1.5 text-xs font-medium text-success animate-fade-in">
+              <CheckCircle2 size={14} /> Saved
+            </span>
+          )}
+          {!editing ? (
+            <button
+              onClick={handleEdit}
+              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Edit3 size={15} /> Edit Profile
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCancel}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-3 py-2 border border-border hover:bg-surface-light text-text-secondary rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                <X size={15} /> Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {saving ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Save size={15} />
+                )}
+                Save Changes
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* General error */}
+      {errors.general && (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-error">
+          <AlertCircle size={16} className="shrink-0" />
+          {errors.general}
+        </div>
+      )}
+
+      {/* Avatar + Identity Card */}
+      <div className="card p-6">
+        <div className="flex items-start gap-5">
+          {/* Avatar */}
+          <div className="relative shrink-0">
+            <div
+              className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-md"
+              style={{ background: `linear-gradient(135deg, ${color.from}, ${color.to})` }}
+            >
+              <span className="text-2xl font-bold text-white select-none">{initials}</span>
+            </div>
+            {editing && (
+              <button
+                onClick={() => setShowColorPicker((v) => !v)}
+                className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-lg bg-white border border-border shadow-sm flex items-center justify-center hover:bg-surface-light transition-colors"
+                title="Change avatar colour"
+              >
+                <Camera size={13} className="text-text-muted" />
+              </button>
+            )}
+            {/* Color picker */}
+            {showColorPicker && editing && (
+              <div className="absolute top-full mt-2 left-0 z-10 card p-3 flex gap-2 shadow-lg">
+                {AVATAR_COLORS.map((c, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      handleChange("avatarColor", i);
+                      setShowColorPicker(false);
+                    }}
+                    className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 ${
+                      draft.avatarColor === i ? "ring-2 ring-offset-1 ring-primary scale-110" : ""
+                    }`}
+                    style={{ background: `linear-gradient(135deg, ${c.from}, ${c.to})` }}
+                    title={c.label}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Name + identity */}
+          <div className="flex-1 min-w-0">
+            {editing ? (
+              <div className="space-y-3">
+                <div>
+                  <input
+                    value={draft.name || ""}
+                    onChange={(e) => handleChange("name", e.target.value)}
+                    placeholder="Organization name"
+                    className={`w-full text-lg font-semibold px-3 py-2 border rounded-lg bg-white text-text-primary placeholder-text-muted focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all ${
+                      errors.name ? "border-error" : "border-border"
+                    }`}
+                  />
+                  {errors.name && (
+                    <p className="mt-1 flex items-center gap-1 text-[11px] text-error">
+                      <AlertCircle size={11} /> {errors.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-xl font-bold text-text-primary truncate">
+                  {profile.name || <span className="text-text-muted italic">No organization name set</span>}
+                </h2>
+                <p className="text-sm text-text-muted mt-1">{profile.email}</p>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Organization Information */}
+      <div className="card overflow-hidden">
+        <div className="flex items-center gap-2.5 px-5 py-3 border-b border-border bg-surface-light">
+          <div className="w-7 h-7 rounded-lg bg-primary-50 flex items-center justify-center">
+            <Building2 size={14} className="text-primary" />
+          </div>
+          <h3 className="text-sm font-semibold text-text-primary">Organization Information</h3>
+        </div>
+        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+          {/* Organization Name */}
+          <Field
+            label="Organization Name"
+            icon={Building2}
+            editing={editing}
+            value={editing ? draft.name : profile.name}
+            onChange={(v) => handleChange("name", v)}
+            placeholder="Your Organization"
+            error={errors.name}
+          />
+          {/* Email (read-only) */}
+          <Field
+            label="Email Address"
+            icon={Mail}
+            editing={false}
+            value={profile.email}
+            placeholder="org@example.com"
+            type="email"
+          />
+        </div>
+      </div>
+
+      {/* Account Information */}
+      <div className="card overflow-hidden">
+        <div className="flex items-center gap-2.5 px-5 py-3 border-b border-border bg-surface-light">
+          <div className="w-7 h-7 rounded-lg bg-info-50 flex items-center justify-center">
+            <Shield size={14} className="text-info" />
+          </div>
+          <h3 className="text-sm font-semibold text-text-primary">Account Information</h3>
+        </div>
+        <div className="p-5">
+          {/* Member since */}
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1.5">
+              Member Since
+            </label>
+            <div className="flex items-center gap-2">
+              <Calendar size={14} className="text-text-muted shrink-0" />
+              <span className="text-sm text-text-primary">
+                {new Date(profile.joinedAt).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Danger Zone */}
+      <div className="card overflow-hidden">
+        <div className="flex items-center gap-2.5 px-5 py-3 border-b border-border bg-surface-light">
+          <div className="w-7 h-7 rounded-lg bg-error-50 flex items-center justify-center">
+            <Info size={14} className="text-error" />
+          </div>
+          <h3 className="text-sm font-semibold text-text-primary">Account Actions</h3>
+        </div>
+        <div className="p-5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-text-primary">Sign out</p>
+            <p className="text-xs text-text-muted mt-0.5">
+              You will be returned to the home page.
+            </p>
+          </div>
+          <button
+            onClick={handleSignOut}
+            className="flex items-center gap-2 px-4 py-2 border border-error/30 bg-error-50 hover:bg-error/10 text-error rounded-lg text-sm font-medium transition-colors"
+          >
+            <LogOut size={15} /> Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Reusable field component */
+function Field({ label, icon: Icon, editing, value, onChange, placeholder, type = "text", error }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-text-secondary mb-1.5">{label}</label>
+      {editing ? (
+        <div>
+          <div className="relative">
+            {Icon && (
+              <Icon
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+              />
+            )}
+            <input
+              type={type}
+              value={value || ""}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder={placeholder}
+              className={`w-full py-2.5 text-sm border rounded-lg bg-white text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 transition-all pl-9 pr-3 ${
+                error
+                  ? "border-error focus:border-error focus:ring-error/10"
+                  : "border-border focus:border-primary focus:ring-primary/10"
+              }`}
+            />
+          </div>
+          {error && (
+            <p className="mt-1 flex items-center gap-1 text-[11px] text-error">
+              <AlertCircle size={11} /> {error}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 min-h-[32px]">
+          {Icon && <Icon size={14} className="text-text-muted shrink-0" />}
+          <span className="text-sm text-text-primary">
+            {value || <span className="italic text-text-muted">Not set</span>}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
