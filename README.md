@@ -524,13 +524,6 @@ Base URL: `http://localhost:8000/api`
 
 ---
 
-## 🤝 Team
-
-| Member | Role |
-|---|---|
-| **sbr69** | Full-Stack Developer & AI Integration |
-
----
 
 ## 📜 License
 
